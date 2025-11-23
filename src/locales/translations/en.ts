@@ -14,6 +14,10 @@ export const message = {
       invalid_url: "The URL is invalid.",
       failed_to_fetch_data: "Failed to fetch data from {source}",
       cannot_commit_modification: "Modification cannot be done due to following reasons:",
+      failed_to_fetch_all_images: "Failed to load following images:",
+      cannot_find_image: "Cannot find image with name {name}",
+      unexpected_image_name: "Unexpected image name {name} encountered",
+      failure_report: "Failed to {task} due to following errors:",
     },
     item_invalid_reason: {
       missing_entry: "missing required entry: {0}",
@@ -35,6 +39,7 @@ export const message = {
     input_password: "Please enter the password",
     displayed_items: "Displaying {count} items",
     load_image_from_file: "Pick local file to load image from",
+    input_new_password: "Enter new password",
   },
   action: {
     copy: "copy",
@@ -56,6 +61,7 @@ export const message = {
     lock_database: "lock database",
     confirm: "confirm",
     cancel: "cancel",
+    maintenance: "maintenance",
   },
   acTion: {
     create: "create {target}",
@@ -187,5 +193,15 @@ export const message = {
     match_lesser: "less than specified value",
     match_equal: "equals to specified value",
     match_greater: "greater than specified value",
+  },
+  maintenance: {
+    image_allocation: "Image pool allocation statistics",
+    critical_zone: "critical zone",
+    critical_zone_explained: "All buttons here need a correct password to be functional",
+    rekey:
+      "The data key can only be used to encrypt for limited times or the security of the system may be harmed.",
+    rekey_required: "The data key have exceeded its encrypting limitation! You must generate a new one.",
+    do_rekey: "generate new data key",
+    change_password: "change the password",
   },
 };

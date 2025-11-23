@@ -139,7 +139,7 @@ async function generate_database() {
     data: new Map(),
   };
   // encrypt it
-  const encrypted_database = await encrypt_datasource(database);
+  const encrypted_database = await encrypt_datasource(database, database.runtime.protection.key);
   // add it into the zip file
   await zip_builder.add(`${global_configuration.name}/data.json`, new TextReader(encrypted_database));
   await zip_builder.close();

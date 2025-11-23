@@ -21,6 +21,12 @@ function stringify_replacer(this: any, key: string, value: any) {
   return value;
 }
 
+// get random bytes as a Uint8Array
+export function wt_random_bytes(length: number): Uint8Array{
+  const result = new Uint8Array(length);
+  return crypto.getRandomValues(result);
+}
+
 export async function wt_encrypt(
   key: CryptoKey,
   data: string | Uint8Array
@@ -38,21 +44,6 @@ export async function wt_encrypt(
 
 export class RekeyError extends Error {}
 export const EncryptMessageLimit = 1000000;
-
-export async function encrypt_data(
-  datasource: Datasource,
-  data: string | Uint8Array,
-  options?: { bump_counter?: boolean }
-): Promise<{ encrypted: Uint8Array; nonce: Uint8Array }> {
-  if (options?.bump_counter ?? false) {
-    if (datasource.protection.encrypted_counter >= EncryptMessageLimit) {
-      throw RekeyError;
-    }
-    datasource.protection.encrypted_counter += 1;
-  }
-  const result = await wt_encrypt(datasource.runtime.protection.key, data);
-  return { encrypted: result.data, nonce: result.nonce };
-}
 
 // image encrypting specification:
 //  Two image file formats (and therefore two codecs) are used in the database: PNG and WebP
@@ -88,34 +79,26 @@ export async function encrypt_data(
 //  WebP files have their leading 12 bytes unchanged. This includes the RIFF file signature (4 bytes),
 //   the file size (4 bytes) and the WebP signature (4 bytes). This header leaks nothing, since the
 //   file size is known anyway.
-export async function encrypt_image(
-  image: Blob,
-  format: ImageFormatSpecification,
-  datasource: Datasource
-): Promise<Blob> {
+export async function encrypt_image(image: Blob, format: ImageFormatSpecification, key: CryptoKey): Promise<Blob> {
   const header_size = format.header_length;
   const array = await image.bytes();
   const image_header = array.slice(0, header_size);
   const data = array.slice(header_size);
-  const result = await encrypt_data(datasource, data, { bump_counter: true });
-  return new Blob([image_header, result.nonce as BufferSource, result.encrypted as BufferSource]);
+  const result = await wt_encrypt(key, data);
+  return new Blob([image_header, result.nonce as BufferSource, result.data as BufferSource]);
 }
 
-export async function encrypt_datasource(datasource: Datasource): Promise<string> {
+// encrypt the database
+//  note that this function will not update encrypted counter
+export async function encrypt_datasource(datasource: Datasource, key: CryptoKey): Promise<string> {
   // check if this key has been used for too many times
   if (datasource.protection.encrypted_counter >= EncryptMessageLimit) {
     // well, can anyone really hit this limit?
     throw RekeyError;
   }
-  // increase the counter
-  //  we cannot let encrypt_data do this for us since the datasource must be transformed into a string
-  //  before being passed to encrypt_data, which makes it impossible for it to be changed
-  datasource.protection.encrypted_counter += 1;
   // transform the datasource into string
   const datasource_string = JSON.stringify(datasource, stringify_replacer);
-  const { encrypted: encrypted_data, nonce } = await encrypt_data(datasource, datasource_string, {
-    bump_counter: false,
-  });
+  const { data: encrypted_data, nonce } = await wt_encrypt(key, datasource_string);
   const encrypted_datasource: EncryptedDatasource = {
     protection: {
       encrypted_key: datasource.runtime.protection.encrypted_key,

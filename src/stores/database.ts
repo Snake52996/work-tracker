@@ -1,4 +1,4 @@
-import { encrypt_datasource, encrypt_image } from "@/procedures/crypto";
+import { encrypt_datasource, encrypt_image, EncryptMessageLimit } from "@/procedures/crypto";
 import { open_image } from "@/procedures/crypto-readonly";
 import {
   create_empty_pool,
@@ -11,15 +11,19 @@ import {
 import type { LoadedImage } from "@/procedures/item-migrant";
 import { make_database_pack } from "@/procedures/packing-utils";
 import { save_to_local } from "@/procedures/save-to-local";
+import { attempts_to } from "@/procedures/utilities";
 import type { Datasource } from "@/types/datasource";
 import type { DataItem } from "@/types/datasource-data";
 import type { RatingEntryData, StringEntryData, TagEntryData } from "@/types/datasource-entry";
 import { ImageImageFormat, ThumbnailImageFormat, type ImageFormatSpecification } from "@/types/image-types";
 import { ItemInvalidType, type InvalidDuplicatedValue, type ItemInvalidReason } from "@/types/invalid-items";
+import { i18n } from "@/locales";
 
 import { defineStore } from "pinia";
 import type { Ref } from "vue";
 import { computed, ref } from "vue";
+
+const { t } = i18n.global;
 
 interface iTagPatch {
   register_tags(entry_name: string, new_tags: string[]): number[];
@@ -50,10 +54,25 @@ interface InternalState {
   // loaded full image for single data items
   //  mapping: data_id -> image blob URL
   images: Map<string, string>;
+  // new (changed) data key
+  //  if the data key is regenerated, this value will be filled
+  //  we will not replace the data key stored in original place (in database_.runtime.protection.key) since
+  //  that old key may still be used to decrypt loaded images that are not yet loaded into caches when the
+  //  data key is regenerated. Instead, we store it here and mark all images (if exists) as modified. In
+  //  this way, when the database is exported for updating, all images are loaded (if not yet in the cache)
+  //  with the old data key and re-encrypted with the new data key, then included in both the delta and full
+  //  export, as what we expect regenerating the data key should do: decrypt all files encrypted and then
+  //  re-encrypt them. Moreover, the saving procedure requires only minor modifications when the key
+  //  regeneration is implemented in this way: just use this key instead of the original one to encrypt the
+  //  data if this is set.
+  new_data_key?: CryptoKey;
+  // keep this comment at the bottom
+  // if you are adding new entries into this structure, remember to update the reset function!
 }
 
 export const useDatabaseStore = defineStore("database", () => {
   const database_: ShallowRef<Datasource | undefined> = shallowRef();
+  const router = useRouter();
 
   const has_image = computed(() => {
     return !!database_.value?.configurations.entry.image_size;
@@ -606,6 +625,22 @@ export const useDatabaseStore = defineStore("database", () => {
     return failures;
   }
 
+  // get parsed and easily usable information about image pool allocation
+  function query_image_pool_allocation(): { name: string; allocations: boolean[] }[] {
+    return [...image_pools.entries()].map(([name, bitmap]) => {
+      const allocations: boolean[] = [];
+      bitmap.forEach((byte_man) => {
+        for (let i = 0; i < 8; i++) {
+          allocations.push((byte_man & (1 << i)) !== 0);
+        }
+      });
+      return {
+        name: name,
+        allocations: allocations,
+      };
+    });
+  }
+
   // if the database is modified
   //  this value will be true if the main data file or any of the image pools is modified
   const database_modified = computed(() => {
@@ -614,62 +649,94 @@ export const useDatabaseStore = defineStore("database", () => {
 
   // procedures saving the database into files
 
+  // number of encrypts to be done
+  //  this is used to communicate with the maintenance page, specifying the reason why the data key must be
+  //  regenerated even if current counter does not yet reached the limitation
+  const encrypts_to_be_done: Ref<number> = ref(0);
+
   // internal implementing of saving database
   //  take an array about extra image batches to save
   //  note that since we will maintain a counter for times the key has been used to encrypt,
   //   main data file will always have to be modified and saved
   async function save_internal(images: string[], pack_name: string) {
-    internal_states.data_modified.value = true;
+    // how many messages will the data key be used to encrypt doing this save?
+    //  there will be one message for each image specified in images, and on extra message for the main data
+    const messages_to_encrypt = images.length + 1;
+    // check if the encrypting quota of data key will be exceeded
+    if (database_.value!.protection.encrypted_counter + messages_to_encrypt > EncryptMessageLimit) {
+      // it will, so we redirect the user to regenerate a data key
+      encrypts_to_be_done.value = messages_to_encrypt;
+      router.push("/Maintenance");
+      return;
+    }
+    // select data key to encrypt data
+    //  use the new data key if one is regenerated
+    const encryption_key = internal_states.new_data_key ?? database_.value!.runtime.protection.key;
+    // load, encrypt and store all images listed in the parameter
     const { add_from_string, add_from_blob, finalize } = make_database_pack(
       database_.value?.configurations.global.name!
     );
-    await Promise.all(
-      images.map(async (name) => {
+    const results = await attempts_to(
+      images.map((image_name) => async (): Promise<void> => {
         // the name can either refers to a thumbnail pool or to a full image, we need to check this
-        if (image_pools.has(name)) {
-          const pool = await get_thumbnail_pool(name);
+        if (image_pools.has(image_name)) {
+          // it must be a thumbnail pool if the name can be found associated with an allocation bitmap
+          const pool = await get_thumbnail_pool(image_name);
           if (pool === null) {
-            throw Error();
+            throw Error(t("message.error.cannot_find_image", { name: image_name }));
           }
           add_from_blob(
-            `${name}${ThumbnailImageFormat.extension}`,
+            `${image_name}${ThumbnailImageFormat.extension}`,
             await encrypt_image(
               await encode_image(pool, ThumbnailImageFormat),
               ThumbnailImageFormat,
-              database_.value!
+              encryption_key
             )
           );
-        } else if (internal_states.images.has(name)) {
-          const image_url = await get_image(name);
-          if (image_url === null) {
-            throw Error();
-          }
-          const image = await(await fetch(image_url)).blob();
-          add_from_blob(
-            `${name}${ImageImageFormat.extension}`,
-            await encrypt_image(image, ImageImageFormat, database_.value!)
-          );
         } else {
-          throw Error();
+          // otherwise, it must be a full image
+          const image_url = await get_image(image_name);
+          if (image_url === "") {
+            throw Error(t("message.error.cannot_find_image", { name: image_name }));
+          }
+          const image = await (await fetch(image_url)).blob();
+          add_from_blob(
+            `${image_name}${ImageImageFormat.extension}`,
+            await encrypt_image(image, ImageImageFormat, encryption_key)
+          );
         }
       })
     );
+    // check if all image are loaded successfully
+    const failed_loads = results.filter((result) => !result.succeed);
+    if (failed_loads.length > 0) {
+      const message =
+        t("message.error.failed_to_fetch_all_images") +
+        "\n" +
+        failed_loads.map(({ reason }) => String(reason)).join("\n");
+      throw Error(message);
+    }
+
+    // build new database, encrypt it and add to the package
     const new_database: Datasource = {
       runtime: {
-        protection: database_.value?.runtime.protection!,
+        protection: database_.value!.runtime.protection,
       },
-      protection: database_.value?.protection!,
-      configurations: database_.value?.configurations!,
+      protection: { encrypted_counter: database_.value!.protection.encrypted_counter + messages_to_encrypt },
+      configurations: database_.value!.configurations,
       images: has_image.value
         ? { pools: Array.from(image_pools.entries(), ([name, bitmap]) => ({ name: name, bitmap: bitmap })) }
         : undefined,
       tags: tags.value.size === 0 ? undefined : tags.value,
       data: data.value,
     };
-    const encrypted_database = await encrypt_datasource(new_database);
+    const encrypted_database = await encrypt_datasource(new_database, encryption_key);
     add_from_string("data.json", encrypted_database);
-    database_.value!.protection.encrypted_counter += 1;
-    save_to_local(await finalize(), pack_name);
+    const zip_file = await finalize();
+    save_to_local(zip_file, pack_name);
+    // we can now safely modify state of the local database
+    internal_states.data_modified.value = true;
+    database_.value!.protection.encrypted_counter += messages_to_encrypt;
   }
 
   // save only modified files
@@ -684,6 +751,37 @@ export const useDatabaseStore = defineStore("database", () => {
     return save_internal([], "database.zip");
   }
 
+  // update data key of this database
+  //  no modification is made to the database unless all operations in this function have succeed
+  //  (but actually, we believe that this function does not include operations that might fail)
+  //  if the value of data key is not modified, do not pass modified.key
+  function update_data_key(modified: { encrypted_key: Uint8Array; nonce: Uint8Array; key?: CryptoKey }) {
+    if (modified.key) {
+      // the key is modified, we have to mark all images as modified. This way, as we will later update the
+      //  data key used to encrypt the database, when modified images are written back, they will be
+      //  re-encrypted with the new data key
+      if (has_image.value) {
+        // mark all images as modified
+        data.value.forEach((_, runtime_id) => {
+          internal_states.modified_images.value.add(runtime_id);
+        });
+        image_pools.forEach((_, name) => {
+          internal_states.modified_images.value.add(name);
+        });
+      }
+
+      // store the new key
+      internal_states.new_data_key = modified.key;
+      // since the data key is changed, we can now reset the encrypt counter
+      database_.value!.protection.encrypted_counter = 0;
+    }
+    // the main data file is always modified
+    internal_states.data_modified.value = true;
+    // replace values
+    database_.value!.runtime.protection.encrypted_key = modified.encrypted_key;
+    database_.value!.runtime.protection.key_nonce = modified.nonce;
+  }
+
   // close database, reset all internal states
   function reset() {
     internal_states.modified_images.value.clear();
@@ -693,6 +791,7 @@ export const useDatabaseStore = defineStore("database", () => {
     internal_states.loaded_thumbnail_pools.clear();
     internal_states.thumbnails.clear();
     internal_states.images.clear();
+    internal_states.new_data_key = undefined;
     data.value.clear();
     tags.value.clear();
     image_pools.clear();
@@ -707,6 +806,7 @@ export const useDatabaseStore = defineStore("database", () => {
     image_size,
     entries,
     database_modified,
+    encrypts_to_be_done,
     build_runtime_database,
     get_cached_image,
     get_image,
@@ -715,8 +815,10 @@ export const useDatabaseStore = defineStore("database", () => {
     acquire_new_runtime_id,
     prepare_tag_registration,
     place_item,
+    query_image_pool_allocation,
     save_delta,
     save_all,
+    update_data_key,
     reset,
   };
 });

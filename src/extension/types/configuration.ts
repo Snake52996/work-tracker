@@ -3,7 +3,7 @@ import {
   load_datasource_phase1,
   load_datasource_phase2,
 } from "@/procedures/crypto-readonly";
-import { try_complete_url } from "@/procedures/utilities";
+import { try_complete_url } from "@/procedures/utilities-pure";
 import { Runner } from "./runner-interfaces";
 import type { RatingEntryData, StringEntryData, TagEntryData } from "@/types/datasource-entry";
 

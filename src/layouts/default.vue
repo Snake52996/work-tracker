@@ -9,8 +9,12 @@
         :type="notice_configuration.type"
         @click:close.stop="notice_configuration.shown = false"
         closable
+        max-height="80vh"
       >
-        {{ notice_configuration.content }}
+        <template v-for="(content, index) in notice_configuration.contents" :key="content">
+          <br v-if="index !== 0" />
+          {{ content }}
+        </template>
       </v-alert>
     </v-bottom-sheet>
   </v-main>
@@ -24,13 +28,13 @@ import { provide, reactive } from "vue";
 const notice_configuration: Reactive<{
   type: NoticeType;
   title: string;
-  content: string;
+  contents: string[];
   shown: boolean;
-}> = reactive({ type: "info", title: "", content: "", shown: false });
+}> = reactive({ type: "info", title: "", contents: [], shown: false });
 provide(inj_DisplayNotice, (type: NoticeType, title: string, content: string) => {
   notice_configuration.type = type;
   notice_configuration.title = title;
-  notice_configuration.content = content;
+  notice_configuration.contents = content.split("\n");
   notice_configuration.shown = true;
 });
 </script>

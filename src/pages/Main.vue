@@ -28,6 +28,10 @@
       <v-icon>mdi-import</v-icon>
       <v-tooltip activator="parent" location="bottom">{{ $t("action.import") }}</v-tooltip>
     </v-btn>
+    <v-btn icon to="/Maintenance">
+      <v-icon>mdi-wrench</v-icon>
+      <v-tooltip activator="parent" location="bottom">{{ $t("action.maintenance") }}</v-tooltip>
+    </v-btn>
     <v-btn icon @click="logout">
       <v-icon>mdi-logout</v-icon>
       <v-tooltip activator="parent" location="bottom">{{ $t("action.lock_database") }}</v-tooltip>

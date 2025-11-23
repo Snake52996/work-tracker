@@ -37,6 +37,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/Maintenance': RouteRecordInfo<
+      '/Maintenance',
+      '/Maintenance',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/NewDatasource': RouteRecordInfo<
       '/NewDatasource',
       '/NewDatasource',
@@ -66,6 +73,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/Main.vue': {
       routes:
         | '/Main'
+      views:
+        | never
+    }
+    'src/pages/Maintenance.vue': {
+      routes:
+        | '/Maintenance'
       views:
         | never
     }
