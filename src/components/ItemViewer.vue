@@ -1,7 +1,7 @@
 <template>
   <v-tooltip interactive v-model="show_tooltip" :disabled="in_editor" open-delay="500" close-delay="300">
     <template v-slot:activator="{ props: activatorProps }">
-      <v-card v-bind="activatorProps">
+      <v-card v-bind="activatorProps" :color="selection?.has(data_id) ? 'primary' : ''">
         <div v-if="database_store.has_image" class="fill-width">
           <v-lazy :height="database_store.image_size.height">
             <v-img
@@ -35,8 +35,10 @@
         </v-card-text>
       </v-card>
     </template>
-    <div>
-      <v-btn @click="request_for_modify">{{ $t("action.edit") }}</v-btn>
+    <div style="display: grid; grid-template-columns: 1fr; gap:8px;">
+      <v-btn block @click="request_for_modify">{{ $t("action.edit") }}</v-btn>
+      <v-btn block v-if="selection?.has(data_id)" @click="emit('unselect', data_id)">{{ $t("action.unselect") }}</v-btn>
+      <v-btn block v-else @click="emit('select', data_id)">{{ $t("action.select") }}</v-btn>
     </div>
   </v-tooltip>
 </template>
@@ -65,9 +67,12 @@ const props = defineProps<{
   override_image: string | null;
   in_editor?: boolean;
   update_broadcast?: Set<string>;
+  selection?: Set<string>;
 }>();
 const emit = defineEmits<{
   request_modify: [string];
+  select: [string];
+  unselect: [string];
 }>();
 const load_full_image: Ref<(() => void) | undefined> = ref(undefined);
 
@@ -114,7 +119,7 @@ onMounted(() => {
 });
 
 const show_tooltip: Ref<boolean> = ref(false);
-async function request_for_modify() {
+function request_for_modify() {
   emit("request_modify", props.data_id);
   show_tooltip.value = false;
 }

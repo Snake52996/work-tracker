@@ -24,6 +24,10 @@
         $t("acTion.create", { target: $t("terms.new_database_item") })
       }}</v-tooltip>
     </v-btn>
+    <v-btn v-if="selections.selected_items.size !== 0" icon @click="show_batched_editor = true">
+      <v-icon>mdi-pencil-box-multiple-outline</v-icon>
+      <v-tooltip activator="parent" location="bottom">{{ $t("action.batch_tag_modify") }}</v-tooltip>
+    </v-btn>
     <v-btn icon @click="show_importer = true">
       <v-icon>mdi-import</v-icon>
       <v-tooltip activator="parent" location="bottom">{{ $t("action.import") }}</v-tooltip>
@@ -72,6 +76,30 @@
                 :label="$t('hint.sort_by')"
               ></v-select>
             </v-col>
+            <v-col cols="4">
+              <v-btn
+                v-if="display_items.every((item) => selections.selected_items.has(item))"
+                @click="change_all_selected_state({ selected: false })"
+              >
+                {{ $t("action.unselect_all") }}
+              </v-btn>
+              <v-btn v-else @click="change_all_selected_state({ selected: true })">{{
+                $t("action.select_all")
+              }}</v-btn>
+            </v-col>
+            <v-col cols="4">
+              <v-btn @click="change_all_selected_state({ inverse: true })">{{
+                $t("action.inverse_selection")
+              }}</v-btn>
+            </v-col>
+            <v-col cols="4">
+              <v-switch
+                v-model="selections.show_selected_only"
+                color="primary"
+                hide-details
+                :label="$t('action.show_only_selected')"
+              ></v-switch>
+            </v-col>
           </v-row>
           <v-row align="center">
             <v-col v-for="(criteria, index) in searching_root" :key="criteria.toString()" class="flex-grow-0">
@@ -116,7 +144,10 @@
               :configuration="database_store.database_?.configurations.entry.entries!"
               :override_image="null"
               :update_broadcast="reload_image_notifier"
+              :selection="selections.selected_items"
               @request_modify="edit_existing_item"
+              @select="selections.selected_items.add(item.raw)"
+              @unselect="selections.selected_items.delete(item.raw)"
             />
           </v-col>
         </v-row>
@@ -157,6 +188,20 @@
     content-class="py-16 overflow-x-hidden overflow-y-scroll hide-scroll-bar"
   >
     <ItemEditor :data="edit_data" :data_id="edit_data_id" @done="finish_editing" />
+  </v-overlay>
+  <v-overlay
+    v-model="show_batched_editor"
+    class="justify-center"
+    width="85%"
+    height="100%"
+    scroll-strategy="none"
+    :persistent="true"
+    content-class="py-16 overflow-x-hidden overflow-y-scroll hide-scroll-bar"
+  >
+    <BatchedTagEditor
+      :item_ids="[...selections.selected_items.keys()]"
+      @close="show_batched_editor = false"
+    />
   </v-overlay>
   <v-btn
     color="primary"
@@ -199,6 +244,7 @@ const goto = useGoTo();
 const edit_data: Ref<DataItem | undefined> = ref(undefined);
 const edit_data_id: Ref<string | undefined> = ref(undefined);
 const show_editor: Ref<boolean> = ref(false);
+const show_batched_editor: Ref<boolean> = ref(false);
 const show_importer: Ref<boolean> = ref(false);
 const reload_image_notifier: ShallowReactive<Set<string>> = shallowReactive(new Set());
 
@@ -220,10 +266,6 @@ function finish_editing() {
   reload_image_notifier.clear();
   show_editor.value = false;
   reload_image_notifier.add(edit_data_id.value!);
-}
-function logout() {
-  database_store.reset();
-  router.replace("/");
 }
 
 const search_input: Ref<string> = ref("");
@@ -503,10 +545,38 @@ const sorted_items = computed(() => {
     .map((item) => item.data);
 });
 
+// manage item selections
+const selections: Reactive<{
+  selected_items: Set<string>;
+  show_selected_only: boolean;
+}> = reactive({
+  selected_items: new Set(),
+  show_selected_only: false,
+});
+
 const display_items = computed(() => {
   const items = current_sorting.value.details === undefined ? filtered_items.value : sorted_items.value!;
-  return items.map(([runtime_id, _]) => runtime_id);
+  const final_items = selections.show_selected_only
+    ? items.filter(([runtime_id]) => selections.selected_items.has(runtime_id))
+    : items;
+  return final_items.map(([runtime_id, _]) => runtime_id);
 });
+
+function change_all_selected_state(option: { selected?: boolean; inverse?: boolean }) {
+  [...display_items.value].forEach((runtime_id) => {
+    if (option.inverse) {
+      if (selections.selected_items.has(runtime_id)) {
+        selections.selected_items.delete(runtime_id);
+      } else {
+        selections.selected_items.add(runtime_id);
+      }
+    } else if (option.selected) {
+      selections.selected_items.add(runtime_id);
+    } else {
+      selections.selected_items.delete(runtime_id);
+    }
+  });
+}
 
 onMounted(() => {
   if (database_store.database_ === undefined) {
@@ -520,4 +590,8 @@ onMounted(() => {
     }
   });
 });
+function logout() {
+  database_store.reset();
+  router.replace("/");
+}
 </script>

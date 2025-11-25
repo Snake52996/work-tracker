@@ -12,6 +12,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AppFooter: typeof import('./components/AppFooter.vue')['default']
+    BatchedTagEditor: typeof import('./components/BatchedTagEditor.vue')['default']
     DatabaseMaintenance: typeof import('./components/DatabaseMaintenance.vue')['default']
     DataImporter: typeof import('./components/DataImporter.vue')['default']
     DatasourceCreation: typeof import('./components/DatasourceCreation.vue')['default']

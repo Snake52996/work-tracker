@@ -18,6 +18,8 @@ export const message = {
       cannot_find_image: "Cannot find image with name {name}",
       unexpected_image_name: "Unexpected image name {name} encountered",
       failure_report: "Failed to {task} due to following errors:",
+      entry_contains_error: "Following errors are detected for this entry:",
+      missing_required_entry: "Required entry {0} not specified",
     },
     item_invalid_reason: {
       missing_entry: "missing required entry: {0}",
@@ -40,6 +42,13 @@ export const message = {
     displayed_items: "Displaying {count} items",
     load_image_from_file: "Pick local file to load image from",
     input_new_password: "Enter new password",
+    tags_to_be_modified: "Tags to be modified",
+    no_tag_to_be_edited: {
+      title: "No entries to be edited",
+      description: "Items do not have any entry with type tag",
+    },
+    tags_in_database: "Current tags in database",
+    tags_preview: "Preview of tags after modification",
   },
   action: {
     copy: "copy",
@@ -62,6 +71,13 @@ export const message = {
     confirm: "confirm",
     cancel: "cancel",
     maintenance: "maintenance",
+    select_all: "select all",
+    unselect_all: "unselect all",
+    inverse_selection: "inverse selection",
+    show_only_selected: "show only selected items",
+    select: "select",
+    unselect: "unselect",
+    batch_tag_modify: "start batched tag modification",
   },
   acTion: {
     create: "create {target}",

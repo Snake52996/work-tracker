@@ -335,6 +335,7 @@ async function submit_internal() {
   ]);
   if (errors.length === 0) {
     emit("done");
+    return;
   }
   display_notice(
     "error",
