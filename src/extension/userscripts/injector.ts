@@ -34,11 +34,17 @@ function inject_styles() {
   color: #ffffff;
 }
 .wt-alert-container > h3 {
-  margin: 0;
+  margin: 0 0 12px 0;
   text-align: center;
+  color: #ffffff;
+}
+.wt-alert-container > p {
+  margin: 0 0 8px 0;
 }
 .wt-alert-container > button {
   width: 100%;
+  background-color: #ffffff;
+  color: black;
 }`,
   );
   Runner.add_style(Indicator.get_css());
@@ -111,7 +117,7 @@ async function user_script_guard(
   } catch (error) {
     show_alert({
       title: `Failed to ${name} the script`,
-      content: `This is caused by the following error:\n${String(error)}`,
+      content: `This is caused by the following error:\n${error}`,
     });
     configure_indicator(indicator, "failed", action_map);
     return true;
@@ -240,14 +246,14 @@ function build_state_action_map(materials: InternalState): Map<IndicatorState, (
   const reload_page = () => {
     window.location.reload();
   };
-  return new Map([
-    ["loading", noop],
-    ["active", refetch],
-    ["dangling", noop],
-    ["pending-update", reload_page],
-    ["degraded", refetch],
-    ["failed", reload_page],
-  ]);
+  result.set("loading", noop);
+  result.set("active", refetch);
+  result.set("dangling", noop);
+  result.set("updating", noop);
+  result.set("pending-update", reload_page);
+  result.set("degraded", refetch);
+  result.set("failed", reload_page);
+  return result;
 }
 
 export async function start_injector(host: InjectorHosts, configuration: InjectorConfiguration) {

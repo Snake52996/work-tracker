@@ -90,7 +90,7 @@ export class InjectorDatabases {
     } catch (error) {
       return Result.error(
         "Cannot open the database",
-        `This is likely caused by an incorrect password, or (less likely) a corrupted caused by some BUG.\nOriginal error: ${String(error)}`,
+        `This is likely caused by an incorrect password, or (less likely) a corrupted caused by some BUG.\nOriginal error: ${error}`,
       );
     }
   }
@@ -277,7 +277,7 @@ export class InjectorScripts {
     } catch (error) {
       return Result.error(
         "Failed to fetch the script",
-        `The following error is triggered. This is most likely caused by network failures.\n${String(error)}`,
+        `The following error is triggered. This is most likely caused by network failures.\n${error}`,
       );
     }
   }
@@ -295,7 +295,7 @@ export class InjectorScripts {
     } catch (error) {
       return Result.error(
         "Failed to compile the script",
-        `This is likely caused by errors in your script. Here is the original error: ${String(error)}`,
+        `This is likely caused by errors in your script. Here is the original error: ${error}`,
       );
     }
   }
@@ -402,7 +402,7 @@ export class InjectorHosts {
     } catch (error) {
       return Result.error(
         "Failed to compile the matcher",
-        `The matcher must be a valid regular expression but the supplied one (quoted in <[ and ]>) <[${host}]> is not.\nThis is the original error: ${String(error)}`,
+        `The matcher must be a valid regular expression but the supplied one (quoted in <[ and ]>) <[${host}]> is not.\nThis is the original error: ${error}`,
       );
     }
   }
