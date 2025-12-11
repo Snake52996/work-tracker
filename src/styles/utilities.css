@@ -1,0 +1,8 @@
+.allow-wrapping {
+  text-wrap-mode: wrap !important;
+  text-wrap-style: pretty !important;
+}
+
+.no-scroll-bar {
+  scrollbar-width: none;
+}

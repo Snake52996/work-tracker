@@ -63,6 +63,11 @@ export const message = {
     },
     tags_in_database: "Current tags in database",
     tags_preview: "Preview of tags after modification",
+    unsaved_changes: {
+      title: "Heads up! You have unsaved changes!",
+      content:
+        "If you leave this page, loaded database will be erased from the memory together with your unsaved changes! Download those modified files unless you ARE going to discard them. Your navigation has been canceled, but this warning will not fire again during the next 60 seconds and you are free to go anywhere now.",
+    },
   },
   action: {
     copy: "copy",

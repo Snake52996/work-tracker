@@ -37,29 +37,135 @@ interface iTagPatch {
   cancel: () => void;
 }
 
+// holder of pseudo version numbers
+//  see comment below for ModificationManager to understand what this is designed for
+//  we use a class to wrap this since we will keep two instances of the same list of entries, one for current
+//  state, one for the saved state
+class PseudoVersionNumbers {
+  // version number for each image file
+  images: Map<string, number>;
+  // version number for the main database file
+  core = 0;
+
+  constructor() {
+    this.images = new Map();
+  }
+}
+
+// manager to record modifications made to the database
+//  this manager does not care about what is exactly the modification, but for how many times has the database
+//  been modified. It holds a pseudo version number for each image (thumbnail pool or full image) and the core
+//  database itself, which is increased by one each time it get modified.
+//  The manager also holds a snapshot of the pseudo version numbers last time the database was saved, so it is
+//  possible to determine if the latest modification was saved
+class ModificationManager {
+  // helper update notifier to integrate with Vue
+  //  after each time the effective content of this manager is modified, this value is modified
+  //  therefore you can use it in computed or watch to get notifications about state updates
+  notifier: Ref<number>;
+
+  // current state
+  #current: PseudoVersionNumbers;
+  // saved state
+  #saved: PseudoVersionNumbers;
+
+  constructor() {
+    this.notifier = ref(0);
+    this.#current = new PseudoVersionNumbers();
+    this.#saved = new PseudoVersionNumbers();
+  }
+
+  // get an iterable of names of modified image files
+  modified_images() {
+    return this.#current.images.keys();
+  }
+
+  // check if any modification has been applied to the database since it was loaded
+  //  this will be true if the list of modified images is not empty, or if core database is modified
+  is_modified() {
+    return this.#current.images.size > 0 || this.#current.core > 0;
+  }
+
+  // check if any modification has been applied to the database since it was loaded and the most recent
+  //  modification has not been saved
+  is_modification_unsaved() {
+    if (!this.is_modified()) {
+      return false;
+    }
+    // current state have a newer main database file that what has been saved
+    if (this.#saved.core < this.#current.core) {
+      return true;
+    }
+    for (const [name, version] of this.#current.images) {
+      const saved_version = this.#saved.images.get(name);
+      if (saved_version === undefined || saved_version < version) {
+        // a new modified image is included, or an image is modified again
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // commit change to image files
+  modify_images(images: Iterable<string>) {
+    for (const image of images) {
+      const existing = this.#current.images.get(image) ?? 0;
+      this.#current.images.set(image, existing + 1);
+    }
+    // send notification
+    this.notifier.value += 1;
+  }
+
+  // commit change to the main database file
+  modify_core_database() {
+    this.#current.core += 1;
+    // send notification
+    this.notifier.value += 1;
+  }
+
+  // mark current state as saved
+  save_state() {
+    this.#saved.core = this.#current.core;
+    this.#saved.images = new Map(this.#current.images.entries());
+    // send notification
+    this.notifier.value += 1;
+  }
+
+  // reset state
+  reset() {
+    this.#current.core = 0;
+    this.#current.images.clear();
+    this.#saved.core = 0;
+    this.#saved.images.clear();
+    this.notifier.value = 0;
+  }
+}
+
 interface InternalState {
-  // set of modified images that need to be write back, which includes both thumbnail pools and full images
-  //  this is made reactive since the UI displays download button according to if the database is now modified
-  modified_images: Ref<Set<string>>;
-  // if the main data file is modified
-  //  this is made reactive since the UI displays download button according to if the database is now modified
-  data_modified: Ref<boolean>;
+  // modification manager
+  modification_manager: ModificationManager;
+
   // list of entries in unique mode and values used in them
   //  note that only entries with string type can be set as unique
   //  mapping: entry name -> set of values
   unique_entries: Map<string, Set<string>>;
+
   // pending tag patch
   tag_patch: iTagPatch | null;
+
   // loaded thumbnail pools
   //  mapping: filename -> data loaded from the file
   //  since the thumbnails are quite small, we store as ImageBitmaps
   loaded_thumbnail_pools: Map<string, ImageBitmap>;
+
   // cropped thumbnail for single data items
   //  mapping: data_id -> image blob URL
   thumbnails: Map<string, string>;
+
   // loaded full image for single data items
   //  mapping: data_id -> image blob URL
   images: Map<string, string>;
+
   // new (changed) data key
   //  if the data key is regenerated, this value will be filled
   //  we will not replace the data key stored in original place (in database_.runtime.protection.key) since
@@ -72,6 +178,7 @@ interface InternalState {
   //  regeneration is implemented in this way: just use this key instead of the original one to encrypt the
   //  data if this is set.
   new_data_key?: CryptoKey;
+
   // keep this comment at the bottom
   // if you are adding new entries into this structure, remember to update the reset function!
 }
@@ -102,8 +209,7 @@ export const useDatabaseStore = defineStore("database", () => {
 
   // collection of not exported variables that are only available at runtime
   const internal_states: InternalState = {
-    modified_images: ref(new Set()),
-    data_modified: ref(false),
+    modification_manager: new ModificationManager(),
     unique_entries: new Map(),
     tag_patch: null,
     loaded_thumbnail_pools: new Map(),
@@ -160,6 +266,7 @@ export const useDatabaseStore = defineStore("database", () => {
       }
       internal_states.unique_entries.set(entry_config.name, values);
     }
+    Object.assign(window, { database_internal: internal_states });
   }
 
   // load an (encrypted) image with the file loader and decrypt it for later usage
@@ -283,7 +390,7 @@ export const useDatabaseStore = defineStore("database", () => {
   //  thumbnail batch, and mark them as modified
   function allocate_thumbnail_slot(): { name: string; index: number } {
     // this function always modifies the main data file
-    internal_states.data_modified.value = true;
+    internal_states.modification_manager.modify_core_database();
 
     function find_clear_bit(value: number): { index: number; shifted: number } {
       for (let i = 0; i < 8; i++) {
@@ -317,14 +424,14 @@ export const useDatabaseStore = defineStore("database", () => {
     for (const [name, bitmap] of image_pools.entries()) {
       const index = get_first_free_index(bitmap);
       if (index !== null) {
-        internal_states.modified_images.value.add(name);
+        internal_states.modification_manager.modify_images([name]);
         return { name, index };
       }
     }
     // make a new image
     const name = generate_uuid_internal(uuid => image_pools.has(uuid));
     const thumbnail_pool = create_empty_pool(to_thumbnail_size(image_size.value));
-    internal_states.modified_images.value.add(name);
+    internal_states.modification_manager.modify_images([name]);
     internal_states.loaded_thumbnail_pools.set(name, thumbnail_pool);
     const new_bitmap = new Uint8Array(ImagePoolConfiguration.rows);
     new_bitmap[0] = 1;
@@ -363,7 +470,7 @@ export const useDatabaseStore = defineStore("database", () => {
     // replace the thumbnail pool
     internal_states.loaded_thumbnail_pools.set(slot.name, modified_thumbnail_pool);
     // update modified list
-    internal_states.modified_images.value.add(slot.name);
+    internal_states.modification_manager.modify_images([slot.name]);
     return Result.ok(slot);
   }
 
@@ -639,7 +746,7 @@ export const useDatabaseStore = defineStore("database", () => {
 
       // now, no following operation is supposed to fail
       if (modified_items.length > 0) {
-        internal_states.data_modified.value = true;
+        internal_states.modification_manager.modify_core_database();
       }
       // we may now apply modifications to tags
       internal_states.tag_patch?.confirm();
@@ -653,7 +760,7 @@ export const useDatabaseStore = defineStore("database", () => {
           source.image = slot.unwrap();
           place_image_cache(runtime_id, { image: images.image_url, thumbnail: images.thumbnail_url });
           // we have (re)placed the full image for this item, update list of modified image
-          internal_states.modified_images.value.add(runtime_id);
+          internal_states.modification_manager.modify_images([runtime_id]);
         }
       }
       // merge the newly collected unique values
@@ -694,7 +801,17 @@ export const useDatabaseStore = defineStore("database", () => {
   // if the database is modified
   //  this value will be true if the main data file or any of the image pools is modified
   const database_modified = computed(() => {
-    return internal_states.data_modified.value || internal_states.modified_images.value.size > 0;
+    if (typeof internal_states.modification_manager.notifier.value !== "number") {
+      return false;
+    }
+    return internal_states.modification_manager.is_modified();
+  });
+  // if the database is modified and not saved
+  const database_modified_unsaved = computed(() => {
+    if (typeof internal_states.modification_manager.notifier.value !== "number") {
+      return false;
+    }
+    return internal_states.modification_manager.is_modification_unsaved();
   });
 
   // procedures saving the database into files
@@ -801,14 +918,16 @@ export const useDatabaseStore = defineStore("database", () => {
     const zip_file = await finalize();
     save_to_local(zip_file, pack_name);
     // we can now safely modify state of the local database
-    internal_states.data_modified.value = true;
+    internal_states.modification_manager.modify_core_database();
     database_.value!.protection.encrypted_counter += messages_to_encrypt;
+    // mark current state as saved
+    internal_states.modification_manager.save_state();
     return Result.ok(undefined);
   }
 
   // save only modified files
   async function save_delta(): Promise<Result<void>> {
-    return save_internal([...internal_states.modified_images.value.keys()], "database-delta.zip");
+    return save_internal([...internal_states.modification_manager.modified_images()], "database-delta.zip");
   }
   // save entire database
   async function save_all(): Promise<Result<void>> {
@@ -829,12 +948,7 @@ export const useDatabaseStore = defineStore("database", () => {
       //  re-encrypted with the new data key
       if (has_image.value) {
         // mark all images as modified
-        for (const runtime_id of data.value.keys()) {
-          internal_states.modified_images.value.add(runtime_id);
-        }
-        for (const name of image_pools.keys()) {
-          internal_states.modified_images.value.add(name);
-        }
+        internal_states.modification_manager.modify_images([...data.value.keys(), ...image_pools.keys()]);
       }
 
       // store the new key
@@ -843,7 +957,7 @@ export const useDatabaseStore = defineStore("database", () => {
       database_.value!.protection.encrypted_counter = 0;
     }
     // the main data file is always modified
-    internal_states.data_modified.value = true;
+    internal_states.modification_manager.modify_core_database();
     // replace values
     database_.value!.runtime.protection.encrypted_key = modified.encrypted_key;
     database_.value!.runtime.protection.key_nonce = modified.nonce;
@@ -851,8 +965,7 @@ export const useDatabaseStore = defineStore("database", () => {
 
   // close database, reset all internal states
   function reset() {
-    internal_states.modified_images.value.clear();
-    internal_states.data_modified.value = false;
+    internal_states.modification_manager.reset();
     internal_states.unique_entries.clear();
     internal_states.tag_patch?.cancel();
     internal_states.loaded_thumbnail_pools.clear();
@@ -873,6 +986,7 @@ export const useDatabaseStore = defineStore("database", () => {
     image_size,
     entries,
     database_modified,
+    database_modified_unsaved,
     encrypts_to_be_done,
     build_runtime_database,
     get_cached_image,

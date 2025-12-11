@@ -8,14 +8,14 @@
       icon
       @click="result_error_reporter(database_store.save_delta(), $t('action.download_delta'), display_notice)"
     >
-      <v-icon color="warning">mdi-download-outline</v-icon>
+      <v-icon :color="database_store.database_modified_unsaved ? 'warning' : ''">mdi-download-outline</v-icon>
       <v-tooltip activator="parent" location="bottom">{{ $t("action.download_delta") }}</v-tooltip>
     </v-btn>
     <v-btn
       icon
       @click="result_error_reporter(database_store.save_all(), $t('action.download_delta'), display_notice)"
     >
-      <v-icon :color="database_store.database_modified ? 'warning' : ''">
+      <v-icon :color="database_store.database_modified_unsaved ? 'warning' : ''">
         mdi-download-multiple-outline
       </v-icon>
       <v-tooltip activator="parent" location="bottom">{{ $t("action.download_full_database") }}</v-tooltip>
@@ -601,8 +601,8 @@ onMounted(() => {
     }
   }
 });
+
 function logout() {
-  database_store.reset();
   router.replace("/");
 }
 </script>

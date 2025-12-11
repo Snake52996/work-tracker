@@ -16,9 +16,18 @@
             @click:append="show_password = !show_password"
             @keydown.enter="phase2_function"
           />
-          <v-btn block class="my-4" color="primary" :disable="password !== ''" @click="phase2_function">{{
-            $t("action.open")
-          }}</v-btn>
+          <v-btn
+            block
+            class="my-4"
+            color="primary"
+            :disabled="password.length === 0"
+            @click="phase2_function"
+          >
+            {{ $t("action.open") }}
+          </v-btn>
+          <v-btn block class="my-3" @click="password = ''; ask_password = false">
+            {{ $t("action.back_to_last_step") }}
+          </v-btn>
         </v-card-text>
         <v-card-text v-else>
           <v-text-field
@@ -135,30 +144,27 @@ function load_from_remote_url() {
       }
       const database_source = await response.text();
       phase2_function.value = () => {
-        open_database_phase2(
-          load_datasource_phase1(database_source),
-          async (name: string) => {
-            const target_url = URL.parse(name, base_url);
-            if (target_url === null) {
-              return Result.error(t("message.error.invalid_url"));
-            }
-            try {
-              const response = await fetch(target_url);
-              if (!response.ok) {
-                return Result.error(
-                  t("message.error.failed_to_fetch_data", { source: target_url.href }),
-                  response.statusText,
-                );
-              }
-              return Result.ok(await response.blob());
-            } catch (error) {
+        open_database_phase2(load_datasource_phase1(database_source), async (name: string) => {
+          const target_url = URL.parse(name, base_url);
+          if (target_url === null) {
+            return Result.error(t("message.error.invalid_url"));
+          }
+          try {
+            const response = await fetch(target_url);
+            if (!response.ok) {
               return Result.error(
                 t("message.error.failed_to_fetch_data", { source: target_url.href }),
-                String(error),
+                response.statusText,
               );
             }
-          },
-        );
+            return Result.ok(await response.blob());
+          } catch (error) {
+            return Result.error(
+              t("message.error.failed_to_fetch_data", { source: target_url.href }),
+              String(error),
+            );
+          }
+        });
       };
       ask_password.value = true;
     })(),

@@ -11,6 +11,7 @@
     />
     <v-btn
       block
+      class="mb-4"
       :disabled="password === ''"
       :loading="is_loading"
       prepend-icon="mdi-dice-multiple"

@@ -26,23 +26,25 @@
               $t("action.learn_more")
             }}</v-chip>
           </template>
-          <v-card>
-            <v-card-title style="text-align: center">{{
-              $t("datasource_creation.security.security_faqs")
-            }}</v-card-title>
-            <v-card
-              v-for="id in [
-                'login_time',
-                'probing_time',
-                'online_security',
-                'access_by_third_party',
-                'implement_detail',
-              ]"
-              :key="id"
-            >
-              <v-card-title>{{ $t(`datasource_creation.security.${id}.question`) }}</v-card-title>
-              <v-card-text>{{ $t(`datasource_creation.security.${id}.answer`) }}</v-card-text>
-            </v-card>
+          <v-card class="no-scroll-bar">
+            <v-card-title style="text-align: center">
+              {{ $t("datasource_creation.security.security_faqs") }}
+            </v-card-title>
+            <v-card-text>
+              <v-card
+                v-for="id in [
+                  'login_time',
+                  'probing_time',
+                  'online_security',
+                  'access_by_third_party',
+                  'implement_detail',
+                ]"
+                :key="id"
+              >
+                <v-card-title class="allow-wrapping">{{ $t(`datasource_creation.security.${id}.question`) }}</v-card-title>
+                <v-card-text>{{ $t(`datasource_creation.security.${id}.answer`) }}</v-card-text>
+              </v-card>
+            </v-card-text>
           </v-card>
         </v-bottom-sheet>
       </div>

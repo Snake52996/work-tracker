@@ -1,4 +1,7 @@
 <template>
+  <v-btn class="mb-8" prepend-icon="mdi-arrow-left" to="/">
+    {{ $t("action.back_to_last_step") }}
+  </v-btn>
   <v-sheet class="pa-4 text-center mx-auto">
     <h2 class="text-h5 mb-6">{{ $t("datasource_creation.welcome") }}</h2>
     <p class="mb-4 text-medium-emphasis text-body-2">
