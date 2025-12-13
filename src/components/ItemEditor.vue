@@ -28,6 +28,26 @@
     >
       <v-card :loading="submitting">
         <v-card-text v-if="database_store.has_image">
+          <v-btn block class="mb-6" @click="emit('done')"> {{ $t("action.cancel") }} </v-btn>
+          <v-text-field
+            v-model="remote_image_load.url"
+            clearable
+            density="comfortable"
+            :label="$t('message.load_image_from_url')"
+            :loading="remote_image_load.loading"
+            prepend-icon="mdi-link-variant"
+            @click:clear="remote_image_load.url = ''"
+            @keydown.enter="load_image_from_url"
+          >
+            <template #append>
+              <v-btn
+                :disabled="remote_image_load.url.length === 0"
+                icon="mdi-download"
+                :loading="remote_image_load.loading"
+                @click="load_image_from_url"
+              />
+            </template>
+          </v-text-field>
           <v-file-input
             v-model="image_files"
             accept="image/*"
@@ -93,6 +113,7 @@
   </v-row>
 </template>
 <script setup lang="ts">
+import type { Reactive } from "vue";
 import type { DataItem } from "@/types/datasource-data";
 import type {
   InternalDataItem,
@@ -103,12 +124,12 @@ import type {
   StringEntryData,
   TagEntryData,
 } from "@/types/datasource-entry";
-import { computed, inject, onMounted } from "vue";
+import { computed, inject, onMounted, reactive } from "vue";
 import { VFileInput } from "vuetify/components";
 import { i18n } from "@/locales";
 import { load_image } from "@/procedures/image-utils";
 import { validate_internal_item } from "@/procedures/item-validator";
-import { dual_way_filter } from "@/procedures/utilities";
+import { dual_way_filter, try_complete_url } from "@/procedures/utilities";
 import { useDatabaseStore } from "@/stores/database";
 import { ImageImageFormat, ThumbnailImageFormat } from "@/types/image-types";
 
@@ -221,7 +242,7 @@ onMounted(() => {
     // prepare image
     if (database_store.has_image) {
       database_store.get_image(props.dataId).then(image => {
-        image.map(value => override_image.value = value);
+        image.map(value => (override_image.value = value));
       });
     }
   }
@@ -257,11 +278,13 @@ onMounted(() => {
 const image_files: Ref<File | undefined> = ref(undefined);
 
 function load_image_internal(image: Blob | HTMLImageElement) {
-  load_image(image, database_store.image_size, ImageImageFormat, ThumbnailImageFormat).then(result => {
+  load_image(image, database_store.image_size, ImageImageFormat, ThumbnailImageFormat).then(result_ => {
     image_files.value = undefined;
-    if (result === null) {
+    if (result_.is_err()) {
+      display_notice("error", t("message.error.failed_to_import_image"), String(result_.unwrap_error()));
       return;
     }
+    const result = result_.unwrap();
     // free previous temporary image
     if (image_helpers.image_bitmap !== null) {
       image_helpers.image_bitmap.close();
@@ -276,7 +299,44 @@ function load_image_internal(image: Blob | HTMLImageElement) {
     image_helpers.thumbnail_url = result.thumbnail_url;
     // update override image
     override_image.value = image_helpers.image_url;
+    remote_image_load.url = "";
   });
+}
+
+const remote_image_load: Reactive<{
+  url: string;
+  loading: boolean;
+}> = reactive({ url: "", loading: false });
+function load_image_from_url() {
+  remote_image_load.loading = true;
+  const url = try_complete_url(remote_image_load.url);
+  if (url === null) {
+    display_notice("error", t("message.error.invalid_url"), "");
+    return;
+  }
+  (async () => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        display_notice(
+          "error",
+          t("message.error.failed_to_fetch_data", { source: url }),
+          response.statusText,
+        );
+        return;
+      }
+      const content = await response.blob();
+      load_image_internal(content);
+    } catch (error) {
+      display_notice("error", t("message.error.failed_to_fetch_data", { source: url }), String(error));
+    }
+  })()
+    .catch(error => {
+      display_notice("error", t("message.error.failed_to_fetch_data", { source: url }), String(error));
+    })
+    .finally(() => {
+      remote_image_load.loading = false;
+    });
 }
 
 function load_image_from_file(files: File | File[] | undefined) {

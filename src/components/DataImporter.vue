@@ -58,7 +58,15 @@ async function do_import_internal(data_files: File[], image_files: Map<string, F
           image_files.get(stem(file.name)),
         );
         update_progress();
-        return result;
+        if (result.is_err()) {
+          display_notice(
+            "error",
+            t("message.error.failed_to_parse_imported_data"),
+            String(result.unwrap_error()),
+          );
+          return null;
+        }
+        return result.unwrap();
       } catch (error) {
         display_notice("error", t("message.error.failed_to_parse_imported_data"), String(error));
         update_progress();

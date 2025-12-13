@@ -34,6 +34,9 @@ export const message = {
       file_does_not_exist: "Trying to open file {filename} which does not exist",
       fetching_thumbnail_for_unknown_item: "Trying to fetch thumbnail for an unknown item.",
       fetching_thumbnail_for_unknown_item_detail: "The item id was {id}. This is likely a BUG.",
+      failed_to_import_image: "Cannot load and prepare the image. Please recheck if it is a valid image.",
+      cannot_parse_JSON: "Cannot parse specified JSON file. Is it corrupted?",
+      invalid_data_format: "The data file has invalid format.",
     },
     item_invalid_reason: {
       missing_entry: "missing required entry: {0}",
@@ -55,6 +58,7 @@ export const message = {
     input_password: "Please enter the password",
     displayed_items: "Displaying {count} items",
     load_image_from_file: "Pick local file to load image from",
+    load_image_from_url: "Input URL to download image from",
     input_new_password: "Enter new password",
     tags_to_be_modified: "Tags to be modified",
     no_tag_to_be_edited: {

@@ -73,34 +73,42 @@ export async function load_image(
   image_size: { height: number; width: number },
   image_format: ImageFormatSpecification,
   thumbnail_format: ImageFormatSpecification,
-): Promise<LoadedImage | null> {
+): Promise<Result<LoadedImage>> {
   const canvas = new OffscreenCanvas(image_size.width, image_size.height);
   const context = canvas.getContext("2d");
   if (context === null) {
-    return null;
+    return Result.error(
+      "cannot open canvas to operate images",
+      "cannot acquire 2d context from OffscreenCanvas instance",
+    );
   }
-  const drawable_image = await window.createImageBitmap(image);
 
-  // create full image
-  context.drawImage(drawable_image, 0, 0, image_size.width, image_size.height);
-  const image_blob = await canvas.convertToBlob({ type: image_format.mime });
-  const image_bitmap = canvas.transferToImageBitmap();
-  const image_url = URL.createObjectURL(image_blob);
+  try {
+    const drawable_image = await window.createImageBitmap(image);
 
-  // create thumbnail
-  const thumbnail_size = to_thumbnail_size(image_size);
-  canvas.height = thumbnail_size.height;
-  canvas.width = thumbnail_size.width;
-  context.drawImage(drawable_image, 0, 0, thumbnail_size.width, thumbnail_size.height);
-  const thumbnail_blob = await canvas.convertToBlob({ type: thumbnail_format.mime });
-  const thumbnail_bitmap = canvas.transferToImageBitmap();
-  const thumbnail_url = URL.createObjectURL(thumbnail_blob);
-  return {
-    thumbnail_url,
-    thumbnail: thumbnail_bitmap,
-    image_url,
-    image: image_bitmap,
-  };
+    // create full image
+    context.drawImage(drawable_image, 0, 0, image_size.width, image_size.height);
+    const image_blob = await canvas.convertToBlob({ type: image_format.mime });
+    const image_bitmap = canvas.transferToImageBitmap();
+    const image_url = URL.createObjectURL(image_blob);
+
+    // create thumbnail
+    const thumbnail_size = to_thumbnail_size(image_size);
+    canvas.height = thumbnail_size.height;
+    canvas.width = thumbnail_size.width;
+    context.drawImage(drawable_image, 0, 0, thumbnail_size.width, thumbnail_size.height);
+    const thumbnail_blob = await canvas.convertToBlob({ type: thumbnail_format.mime });
+    const thumbnail_bitmap = canvas.transferToImageBitmap();
+    const thumbnail_url = URL.createObjectURL(thumbnail_blob);
+    return Result.ok({
+      thumbnail_url,
+      thumbnail: thumbnail_bitmap,
+      image_url,
+      image: image_bitmap,
+    });
+  } catch (error) {
+    return Result.error("cannot operate image", String(error));
+  }
 }
 
 // create an empty image pool given the size of a single image in the pool
