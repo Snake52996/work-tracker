@@ -7,7 +7,7 @@
 // @grant       GM.setValue
 // @grant       GM.deleteValue
 // @grant       GM_addValueChangeListener
-// @version     1.5
+// @version     1.6
 // ==/UserScript==
 import { InjectorConfiguration } from "./types/configuration";
 import { start_configuration } from "./userscripts/configurations";

@@ -278,7 +278,7 @@ export async function start_injector(host: InjectorHosts, configuration: Injecto
   // create container for database and script
   const { database, script } = configuration.get_components(host);
   const script_instance = (await script.get_instance()).unwrap();
-  const database_content = await database.get_content();
+  const database_content = (await database.get_content()).unwrap();
   const materials: InternalState = {
     database,
     script,
