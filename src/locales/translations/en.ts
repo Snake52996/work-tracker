@@ -65,6 +65,10 @@ export const message = {
       title: "No entries to be edited",
       description: "Items do not have any entry with type tag",
     },
+    no_tags_to_be_inspected: {
+      title: "Nothing to be inspected",
+      description: "At least two different tags must be created before inspecting relationship between them.",
+    },
     tags_in_database: "Current tags in database",
     tags_preview: "Preview of tags after modification",
     unsaved_changes: {
@@ -255,6 +259,10 @@ export const message = {
   },
   maintenance: {
     image_allocation: "Image pool allocation statistics",
+    tag_insight: {
+      title: "Tag Insight",
+      subtitle: "Inspect relationship / correspondence between tags",
+    },
     danger_zone: "danger zone",
     danger_zone_explained: "All operations here forms certain level of danger",
     export_configuration: "Export the database configuration",
@@ -267,5 +275,10 @@ export const message = {
     rekey_required: "The data key have exceeded its encrypting limitation! You must generate a new one.",
     do_rekey: "generate new data key",
     change_password: "change the password",
+  },
+  conjunctions: {
+    both_a_and_b: "both {a} and {b}",
+    neither_a_nor_b: "neither {a} nor {b}",
+    a_but_not_b: "{a} but not {b}",
   },
 };

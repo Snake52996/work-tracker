@@ -21,6 +21,13 @@
         </v-window>
       </v-card-text>
     </v-card>
+    <v-card>
+      <v-card-title>{{ $t("maintenance.tag_insight.title") }}</v-card-title>
+      <v-card-subtitle>{{ $t("maintenance.tag_insight.subtitle") }}</v-card-subtitle>
+      <v-card-text>
+        <tag-insight />
+      </v-card-text>
+    </v-card>
     <v-card class="danger-zone" variant="outlined">
       <v-card-title>{{ $t("maintenance.danger_zone") }}</v-card-title>
       <v-card-subtitle>{{ $t("maintenance.danger_zone_explained") }}</v-card-subtitle>
@@ -113,6 +120,7 @@ import { result_error_reporter } from "@/procedures/utilities";
 import { useDatabaseStore } from "@/stores/database";
 import { inj_DisplayNotice } from "@/types/injections";
 import { Result } from "@/types/result";
+import TagInsight from "./TagInsight.vue";
 
 const { t } = i18n.global;
 const display_notice = inject(inj_DisplayNotice)!;

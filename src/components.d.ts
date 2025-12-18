@@ -39,5 +39,7 @@ declare module 'vue' {
     LanguageSelector: typeof import('./components/LanguageSelector.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    TagInsight: typeof import('./components/TagInsight.vue')['default']
+    VennDiagram: typeof import('./components/VennDiagram.vue')['default']
   }
 }
