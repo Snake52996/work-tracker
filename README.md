@@ -1,5 +1,7 @@
 # WT: Work Tracker, a frontend-only web application for recording works you experienced
 
+Read in other languages: [简体中文](docs/readmes/README_zh.md)
+
 This is the sourcecode base for Work Tracker where it is developed. All source code is openly available here for you to exam if you are interested in, having questions about or feeling skeptical of it. However, in most cases, you do not have to download the source code to use this application: an instance is built and readily available at [this first-party URL](https://snake.moe/wt/).
 
 ## What is Work Tracker?
